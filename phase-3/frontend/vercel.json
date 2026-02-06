@@ -1,0 +1,11 @@
+{
+  "buildCommand": "pnpm build",
+  "devCommand": "pnpm dev",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "framework": "nextjs",
+  "name": "hackthon2-phase3-frontend",
+  "projectSettings": {
+    "nodeVersion": "20.x"
+  }
+}
+

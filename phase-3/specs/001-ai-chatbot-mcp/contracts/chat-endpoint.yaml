@@ -1,0 +1,166 @@
+openapi: 3.0.3
+info:
+  title: Chat Endpoint API
+  version: 1.0.0
+  description: Stateless chat endpoint for AI-powered task management
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+  - url: https://api.example.com
+    description: Production server
+
+paths:
+  /api/{user_id}/chat:
+    post:
+      summary: Send message and receive AI response
+      description: |
+        Stateless chat endpoint that processes user messages using OpenAI Agents SDK
+        and MCP tools for task management. Conversation history is fetched from
+        database on each request. Returns assistant's natural language response.
+      operationId: chat
+      tags:
+        - Chat
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Unique identifier for the user (must match JWT claim)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+      responses:
+        '200':
+          description: Successful chat response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+        '400':
+          description: Bad request - invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - missing or invalid JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - user_id doesn't match JWT claim
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found - conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Bad gateway - OpenAI API unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token from Better Auth frontend authentication
+
+  schemas:
+    ChatRequest:
+      type: object
+      required:
+        - message
+      properties:
+        conversation_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: |
+            UUID of the conversation. If null or omitted, creates a new conversation.
+            If provided, continues existing conversation with full history.
+        message:
+          type: string
+          minLength: 1
+          maxLength: 10000
+          description: User's natural language message to the AI assistant
+      example:
+        conversation_id: "550e8400-e29b-41d4-a716-446655440000"
+        message: "Create a task to buy groceries for dinner"
+
+    ChatResponse:
+      type: object
+      required:
+        - response
+        - conversation_id
+      properties:
+        response:
+          type: string
+          description: AI assistant's natural language response to the user
+        conversation_id:
+          type: string
+          format: uuid
+          description: UUID of the conversation (new if request was null)
+      example:
+        response: "I've created a new task for you: 'buy groceries for dinner'. Is there anything specific you need to pick up?"
+        conversation_id: "550e8400-e29b-41d4-a716-446655440000"
+
+    ErrorResponse:
+      type: object
+      required:
+        - error_code
+        - message
+      properties:
+        error_code:
+          type: string
+          enum:
+            - AUTH_MISSING
+            - AUTH_INVALID
+            - AUTH_EXPIRED
+            - AUTH_USER_MISMATCH
+            - VALIDATION_ERROR
+            - NOT_FOUND
+            - CONVERSATION_NOT_FOUND
+            - TASK_NOT_FOUND
+            - RATE_LIMIT_EXCEEDED
+            - INTERNAL_ERROR
+            - AI_SERVICE_UNAVAILABLE
+            - DATABASE_ERROR
+          description: Machine-readable error code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          description: Additional error details (optional)
+      example:
+        error_code: "CONVERSATION_NOT_FOUND"
+        message: "Conversation with ID '550e8400-e29b-41d4-a716-446655440000' not found"
+        details:
+          conversation_id: "550e8400-e29b-41d4-a716-446655440000"
+
+tags:
+  - name: Chat
+    description: AI-powered conversational task management

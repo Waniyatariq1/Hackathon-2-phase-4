@@ -1,0 +1,479 @@
+# MCP Tools Specification: Task Management
+
+**Feature**: AI Chatbot with MCP Server (001-ai-chatbot-mcp)
+**Protocol**: Model Context Protocol (MCP)
+**Purpose**: Expose task operations as standardized tools for AI agent consumption
+
+## Overview
+
+The MCP server exposes 5 stateless tools for task management. Each tool:
+- Validates user_id from JWT to enforce user isolation
+- Queries database directly via SQLModel (no in-memory state)
+- Returns structured responses to the AI agent
+- Follows MCP tool schema standards
+
+---
+
+## Tool 1: add_task
+
+### Description
+Create a new task for the authenticated user.
+
+### Input Schema
+
+```yaml
+name: add_task
+description: Create a new task with the specified title and optional description
+inputSchema:
+  type: object
+  required:
+    - user_id
+    - title
+  properties:
+    user_id:
+      type: integer
+      description: Unique identifier for the user (from JWT)
+    title:
+      type: string
+      minLength: 1
+      maxLength: 200
+      description: Task title or brief description
+    description:
+      type: string
+      maxLength: 1000
+      description: Optional detailed description of the task
+      nullable: true
+```
+
+### Output Schema
+
+```yaml
+type: object
+properties:
+  success:
+    type: boolean
+  task:
+    type: object
+    properties:
+      id:
+        type: integer
+      user_id:
+        type: integer
+      title:
+        type: string
+      description:
+        type: string
+        nullable: true
+      status:
+        type: string
+        enum: [pending, completed]
+      created_at:
+        type: string
+        format: date-time
+      updated_at:
+        type: string
+        format: date-time
+  error:
+    type: string
+    nullable: true
+```
+
+### Success Response Example
+
+```json
+{
+  "success": true,
+  "task": {
+    "id": 42,
+    "user_id": 123,
+    "title": "Buy groceries for dinner",
+    "description": "Milk, eggs, bread, and vegetables",
+    "status": "pending",
+    "created_at": "2026-01-04T12:00:00Z",
+    "updated_at": "2026-01-04T12:00:00Z"
+  },
+  "error": null
+}
+```
+
+### Error Response Example
+
+```json
+{
+  "success": false,
+  "task": null,
+  "error": "Invalid user_id: user does not exist"
+}
+```
+
+---
+
+## Tool 2: list_tasks
+
+### Description
+List all tasks for the authenticated user, optionally filtered by status.
+
+### Input Schema
+
+```yaml
+name: list_tasks
+description: Retrieve all tasks for the user, optionally filtered by status
+inputSchema:
+  type: object
+  required:
+    - user_id
+  properties:
+    user_id:
+      type: integer
+      description: Unique identifier for the user (from JWT)
+    status:
+      type: string
+      enum: [pending, completed]
+      description: Optional filter by task status
+      nullable: true
+```
+
+### Output Schema
+
+```yaml
+type: object
+properties:
+  success:
+    type: boolean
+  tasks:
+    type: array
+    items:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [pending, completed]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+  count:
+    type: integer
+  error:
+    type: string
+    nullable: true
+```
+
+### Success Response Example
+
+```json
+{
+  "success": true,
+  "tasks": [
+    {
+      "id": 42,
+      "user_id": 123,
+      "title": "Buy groceries for dinner",
+      "description": "Milk, eggs, bread, and vegetables",
+      "status": "pending",
+      "created_at": "2026-01-04T12:00:00Z",
+      "updated_at": "2026-01-04T12:00:00Z"
+    },
+    {
+      "id": 43,
+      "user_id": 123,
+      "title": "Complete project proposal",
+      "description": null,
+      "status": "completed",
+      "created_at": "2026-01-03T10:00:00Z",
+      "updated_at": "2026-01-04T09:00:00Z"
+    }
+  ],
+  "count": 2,
+  "error": null
+}
+```
+
+---
+
+## Tool 3: complete_task
+
+### Description
+Mark a specific task as completed.
+
+### Input Schema
+
+```yaml
+name: complete_task
+description: Mark a task as completed by its ID
+inputSchema:
+  type: object
+  required:
+    - user_id
+    - task_id
+  properties:
+    user_id:
+      type: integer
+      description: Unique identifier for the user (from JWT)
+    task_id:
+      type: integer
+      description: Unique identifier for the task to complete
+```
+
+### Output Schema
+
+```yaml
+type: object
+properties:
+  success:
+    type: boolean
+  task:
+    type: object
+    properties:
+      id:
+        type: integer
+      user_id:
+        type: integer
+      title:
+        type: string
+      description:
+        type: string
+        nullable: true
+      status:
+        type: string
+        enum: [pending, completed]
+      created_at:
+        type: string
+        format: date-time
+      updated_at:
+        type: string
+        format: date-time
+  error:
+    type: string
+    nullable: true
+```
+
+### Success Response Example
+
+```json
+{
+  "success": true,
+  "task": {
+    "id": 42,
+    "user_id": 123,
+    "title": "Buy groceries for dinner",
+    "description": "Milk, eggs, bread, and vegetables",
+    "status": "completed",
+    "created_at": "2026-01-04T12:00:00Z",
+    "updated_at": "2026-01-04T14:30:00Z"
+  },
+  "error": null
+}
+```
+
+### Error Response Example
+
+```json
+{
+  "success": false,
+  "task": null,
+  "error": "Task not found or does not belong to user"
+}
+```
+
+---
+
+## Tool 4: delete_task
+
+### Description
+Permanently delete a specific task.
+
+### Input Schema
+
+```yaml
+name: delete_task
+description: Delete a task by its ID
+inputSchema:
+  type: object
+  required:
+    - user_id
+    - task_id
+  properties:
+    user_id:
+      type: integer
+      description: Unique identifier for the user (from JWT)
+    task_id:
+      type: integer
+      description: Unique identifier for the task to delete
+```
+
+### Output Schema
+
+```yaml
+type: object
+properties:
+  success:
+    type: boolean
+  message:
+    type: string
+  error:
+    type: string
+    nullable: true
+```
+
+### Success Response Example
+
+```json
+{
+  "success": true,
+  "message": "Task 42 deleted successfully",
+  "error": null
+}
+```
+
+### Error Response Example
+
+```json
+{
+  "success": false,
+  "message": null,
+  "error": "Task not found or does not belong to user"
+}
+```
+
+---
+
+## Tool 5: update_task
+
+### Description
+Update a task's title and/or description.
+
+### Input Schema
+
+```yaml
+name: update_task
+description: Update a task's title and/or description
+inputSchema:
+  type: object
+  required:
+    - user_id
+    - task_id
+  properties:
+    user_id:
+      type: integer
+      description: Unique identifier for the user (from JWT)
+    task_id:
+      type: integer
+      description: Unique identifier for the task to update
+    title:
+      type: string
+      minLength: 1
+      maxLength: 200
+      description: New task title
+      nullable: true
+    description:
+      type: string
+      maxLength: 1000
+      description: New task description
+      nullable: true
+```
+
+### Output Schema
+
+```yaml
+type: object
+properties:
+  success:
+    type: boolean
+  task:
+    type: object
+    properties:
+      id:
+        type: integer
+      user_id:
+        type: integer
+      title:
+        type: string
+      description:
+        type: string
+        nullable: true
+      status:
+        type: string
+        enum: [pending, completed]
+      created_at:
+        type: string
+        format: date-time
+      updated_at:
+        type: string
+        format: date-time
+  error:
+    type: string
+    nullable: true
+```
+
+### Success Response Example
+
+```json
+{
+  "success": true,
+  "task": {
+    "id": 42,
+    "user_id": 123,
+    "title": "Buy groceries for dinner party",
+    "description": "Milk, eggs, bread, vegetables, and wine",
+    "status": "pending",
+    "created_at": "2026-01-04T12:00:00Z",
+    "updated_at": "2026-01-04T15:00:00Z"
+  },
+  "error": null
+}
+```
+
+### Error Response Example
+
+```json
+{
+  "success": false,
+  "task": null,
+  "error": "At least one field (title or description) must be provided"
+}
+```
+
+---
+
+## Error Codes
+
+All tools use consistent error codes:
+
+| Error Code | Description | HTTP Status Equivalent |
+|------------|-------------|----------------------|
+| AUTH_INVALID | Invalid or missing user_id | 401 |
+| NOT_FOUND | Task or conversation not found | 404 |
+| FORBIDDEN | Task belongs to different user | 403 |
+| VALIDATION_ERROR | Invalid input parameters | 400 |
+| DATABASE_ERROR | Database operation failed | 500 |
+
+---
+
+## Security Considerations
+
+1. **User Isolation**: Every tool validates `user_id` parameter and filters queries accordingly
+2. **Input Validation**: All inputs validated using Pydantic schemas before database operations
+3. **Error Messages**: Do not expose sensitive information (e.g., don't reveal if a task exists for a different user)
+4. **Idempotency**: Tools are idempotent where appropriate (e.g., completing an already completed task)
+
+---
+
+## Statelessness
+
+All MCP tools are stateless:
+- No in-memory state between invocations
+- All data read/written to database via SQLModel
+- Each tool invocation is independent
+- No session or context stored on MCP server
